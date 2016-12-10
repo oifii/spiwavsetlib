@@ -332,12 +332,66 @@ int GetMidiNoteNumberFromString(const char* pstring)
 		//if( *it>47 && *it<58 && it>(filename.begin()+1) )
 		if( *it>47 && *it<58 && it>filename.begin() ) 
 		{
+			//spi, begin
+			//2016july14, fix c)
+			//if there is a following char, this following char must be either "-", "_", " ", ")" or "."
+			if( (it+1)<filename.end() && ((*(it+1)!=45 && *(it+1)!=95 && *(it+1)!=32 && *(it+1)!=41 && *(it+1)!=46)) )
+			{
+				continue;
+			}
+			//spi, end
 			//if previous char == #, == - or is between A and G inclusively
 			if( *(it-1)==35 || *(it-1)==45 || (*(it-1)>64 && *(it-1)<72) || (*(it-1)>96 && *(it-1)<104) )
 			{
+				//spi, begin
+				//2016july14 fix b)
+				/*
 				octaveconfirmed = true; //when char == # or -, we should also ensure that *(it-2) is a letter between A and G
 				octave = atoi(&((char)*it));
+				*/
+				//if second previous char exist and previous char is a letter between A and G, this second previous char must be either "-", "_", " " or "("
+				if( ((it-1)>filename.begin()) && ((*(it-1)>64 && *(it-1)<72) || (*(it-1)>96 && *(it-1)<104)) && (*(it-2)==45 || *(it-2)==95 || *(it-2)==32 || *(it-2)==40) )
+				{
+					octaveconfirmed = true; 
+					octave = atoi(&((char)*it));
+				}
+				//if second previous char does not exist and previous char is a letter between A and G, OK it is a notename
+				else if( (it-1)==filename.begin() && ((*(it-1)>64 && *(it-1)<72) || (*(it-1)>96 && *(it-1)<104)) )
+				{
+					octaveconfirmed = true; 
+					octave = atoi(&((char)*it));
+				}
+				//if second previous char exist and third previous char exist and previous char == # or == - and second previous char is a letter between A and G, this third previous char must be either "-", "_", " " or "(" 
+				else if( ((it-1)>filename.begin()) && ((it-2)>filename.begin()) && (*(it-1)==35 || *(it-1)==45) && ((*(it-2)>64 && *(it-2)<72) || (*(it-2)>96 && *(it-2)<104)) && (*(it-3)==45 || *(it-3)==95 || *(it-3)==32 || *(it-3)==40))
+				{
+					octaveconfirmed = true; 
+					octave = atoi(&((char)*it));
+				}
+				//if second previous char exist and third previous char exist and previous char == - and second previous char is #, this third previous char must be a letter between A and G 
+				else if( ((it-1)>filename.begin()) && ((it-2)>filename.begin()) && (*(it-1)==45) && (*(it-2)==35) && ((*(it-3)>64 && *(it-3)<72) || (*(it-3)>96 && *(it-3)<104)) )
+					//((*(it-2)>64 && *(it-2)<72) || (*(it-2)>96 && *(it-2)<104)) && (*(it-3)==45 || *(it-3)==95 || *(it-3)==32 || *(it-3)==40))
+				{
+					octaveconfirmed = true; 
+					octave = atoi(&((char)*it));
+				}
+				//if second previous char exist and third previous char does not exist and previous char == # or == - and second previous char is a letter between A and G, OK it is a notename 
+				else if( ((it-1)>filename.begin()) && ((it-2)==filename.begin()) && (*(it-1)==35 || *(it-1)==45) && ((*(it-2)>64 && *(it-2)<72) || (*(it-2)>96 && *(it-2)<104)) )
+				{
+					octaveconfirmed = true; 
+					octave = atoi(&((char)*it));
+				}
+				//spi, end
 			}
+			/* removing 2016july14 fix a), to allow valid notename to be anywhere in string
+			//spi, begin
+			//2016july14 fix a)
+			else
+			{
+				//if string does not end with valid notename, break, function will return -1 
+				break;
+			}
+			//spi, end
+			*/
 		}
 		//else if between A and G inclusively
 		else if( octaveconfirmed==true && ((*it>64 && *it<72) || (*it>96 && *it<104)) )
@@ -351,7 +405,23 @@ int GetMidiNoteNumberFromString(const char* pstring)
 					//for E and B, there is no semitone #
 					assert(false);
 				}
+				//spi, begin
+				//2016nov27 fix for octave -1
+				else if(*(it+2)==45)
+				{
+					octave = -octave;
+				}
+				//spi, end
+
 			}
+			//spi, begin
+			//2016nov27 fix for octave -1
+			else if(*(it+1)==45)
+			{
+				octave = -octave;
+			}
+			//spi, end
+
 			break;
 		}
 	}

@@ -97,6 +97,7 @@ public:
 
 	WavSet();
 	void Init();
+	WavSet(int samplerate, int numchannels, int totalframes, float* psamples);
 	WavSet(class WavSet* pWavSet, int idSegment=-1);
 	bool Copy(class WavSet* pWavSet, int idSegment=-1);
 	bool Copy(class WavSet* pWavSet, float duration_s, float offset_s);
@@ -144,6 +145,10 @@ public:
 	bool Resample48000stereoTo44100stereo();
 	bool OpenStream(PaStreamParameters* pPaStreamInputParameters, PaStreamParameters* pPaStreamOutputParameters, PaStreamCallback* pPaStreamCallback);
 	bool CloseStream();
+
+	bool GetLeftChannel(class WavSet* pWavSet);
+	bool GetRightChannel(class WavSet* pWavSet);
+	bool SetLeftAndRightChannels(class WavSet* pLeftWavSet, class WavSet* pRightWavSet);
 };
 
 
