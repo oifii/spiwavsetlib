@@ -117,6 +117,40 @@ void WavSet::Init()
 
 }
 
+WavSet::WavSet(int samplerate, int numchannels, int totalframes, float* psamples)
+{
+	Init();
+	assert(psamples && (numchannels==1 || numchannels==2));
+	SampleRate = samplerate;
+	numChannels = numchannels;
+	totalFrames = totalframes;
+	numSamples = totalFrames*numChannels;
+	numBytes = numSamples*sizeof(float);
+	
+	//malloc
+	pSamples = (float*)malloc(numBytes);
+	
+	memcpy(pSamples, psamples, numBytes);
+	
+	
+	//write data
+	if (numchannels == 1)
+	{
+		for (int i = 0; i<totalFrames; i++)
+		{
+			*(pSamples + i) = *(psamples + i);  // mono 
+		}
+	}
+	else
+	{
+		for (int i = 0; i<totalFrames; i++)
+		{
+			*(pSamples + 2 * i) = *(psamples + 2*i);  // left 
+			*(pSamples + 2 * i + 1) = *(psamples + 2*i+1);  // right 
+		}
+	}	
+}
+
 WavSet::WavSet(WavSet* pWavSet, int idSegment)
 {
 	Copy(pWavSet,idSegment); //-1 for all segments
@@ -704,40 +738,137 @@ float WavSet::SpreadSamples(const char* patternedsample, Instrument* pInstrument
 	return totallengthinseconds;
 }
 
+//2020sept29, spi, begin
+bool WavSet::Reverse()
+{
+	/*
+	if(SampleRate != pWavSet->SampleRate) return false;
+	if(totalFrames != pWavSet->totalFrames) return false;
+	if(numChannels != pWavSet->numChannels) return false;
+	if(numSamples != pWavSet->numSamples) return false;
+	if(numBytes != pWavSet->numBytes) return false;
+	*/
+
+	//numSamples = totalFrames * numChannels;
+	//numBytes = numSamples * sizeof(float);
+	//float* pSamples;
+	float* ptr1 = pSamples;
+	float* ptr2 = pSamples + (totalFrames - 1) * numChannels;
+	if(numChannels==1)
+	{
+		while (ptr1 < ptr2)
+		{
+			float tmp = *ptr1;
+			*ptr1 = *ptr2;
+			*ptr2 = tmp;
+			++ptr1;
+			--ptr2;
+		}
+	}
+	else if (numChannels == 2)
+	{
+		while (ptr1 < ptr2)
+		{
+			float tmp1 = *ptr1;
+			float tmp2 = *(ptr1+1);
+			*ptr1 = *ptr2;
+			*ptr2 = tmp1;
+			*(ptr2+1) = tmp2;
+			++ptr1;
+			++ptr1;
+			--ptr2;
+			--ptr2;
+		}
+	}
+	else
+	{
+		//unsupported number of channels
+		assert(false);
+		return false;
+	}
+	return true;
+}
+//2020sept29, spi, end
+
 //distance_s is the length of the loop in seconds
 //distance_s < 0 will default into duration_s
 //duration_s < 0 will default into supplied sample length
-float WavSet::LoopSample(WavSet* pWavSet, float distance_s, float duration_s, float distanceoffset_s)
+//2020sept29, spi, begin
+//float WavSet::LoopSample(WavSet* pWavSet, float distance_s, float duration_s, float distanceoffset_s)
+float WavSet::LoopSample(WavSet* pWavSet, float distance_s, float duration_s, float distanceoffset_s, bool ceil/*=false*/, bool reverseeveryothersample/*=false*/)
+//2020sept29, spi, end
 {
-	assert(pWavSet);
+	//assert(pWavSet);
+	if (pWavSet == NULL) return 0.0f;
 	if(duration_s<0) duration_s = pWavSet->GetWavSetLength();
 	if(distance_s<0) distance_s = pWavSet->GetWavSetLength();
 	//2013oct12, poirier, begin
-	int numberofsample = distance_s/duration_s; //number of repetition
-	float fremainder_s = (distance_s/duration_s - numberofsample)*duration_s;
-	//int numberofsample = ceil(distance_s/duration_s); //number of repetition
+	int numberofloop = distance_s/duration_s; //number of repetition
+	float fremainder_s = (distance_s/duration_s - numberofloop)*duration_s;
+	//int numberofloop = ceil(distance_s/duration_s); //number of repetition
 	//2013oct12, poirier, end
+	//2020sept29, spi, begin
+	if (ceil==true && fremainder_s>0.0f)
+	{
+		numberofloop++;
+		fremainder_s = 0.0f;
+	}
+	WavSet* pReverseWavSet = NULL;
+	if (reverseeveryothersample == true)
+	{
+		//prepare the reversed sample
+		pReverseWavSet = (WavSet*) new WavSet(pWavSet);
+		if (pReverseWavSet) pReverseWavSet->Reverse();
+		else return false;
+	}
+	//2020sept29, spi, end
 	float totallengthinseconds = 0.0f;
 	float offset_s;
 	int i;
-	for(i=0; i<numberofsample; i++)
+	//1) calculate total length required
+	totallengthinseconds = distanceoffset_s + numberofloop * duration_s;
+	//2) allocate WavSet if not already
+	if (pSamples == NULL)
 	{
-		//offset_s = distanceoffset_s + duration_s/2 + i*(distance_s/numberofsample);
-		offset_s = distanceoffset_s + i*(distance_s/numberofsample);
-		Sum(1.0, pWavSet, offset_s, duration_s);
-		totallengthinseconds = offset_s + duration_s;
+		bool success = CreateSilence(totallengthinseconds, pWavSet->SampleRate, pWavSet->numChannels);
+		if (!success)
+		{
+			if (pReverseWavSet) delete pReverseWavSet;
+			return 0.0f;
+		}
 	}
+	//3) add loop as many time as required
+	//2020sept29, spi, begin
+	for (i = 0; i < numberofloop; i++)
+	{
+		//offset_s = distanceoffset_s + i * (distance_s / numberofloop);
+		offset_s = distanceoffset_s + i * duration_s;
+		if ( (reverseeveryothersample==false) || (i % 2 == 0) )
+		{
+			Sum(1.0, pWavSet, offset_s, duration_s);
+		}
+		else
+		{
+			Sum(1.0, pReverseWavSet, offset_s, duration_s);
+		}
+		//totallengthinseconds = offset_s + duration_s;
+	}
+	//2020sept29, spi, end
+
 	//2013oct12, poirier, begin
 	/*
 	if(fremainder_s>0.0f)
 	{
 		i++;
-		offset_s = distanceoffset_s + i*(distance_s/numberofsample);
+		offset_s = distanceoffset_s + i*(distance_s/numberofloop);
 		Sum(1.0, pWavSet, offset_s, fremainder_s);
 		totallengthinseconds = offset_s + fremainder_s;
 	}
 	*/
 	//2013oct12, poirier, end
+	//2020sept29, spi, begin
+	if (pReverseWavSet) delete pReverseWavSet;
+	//2020sept29, spi, end
 	return totallengthinseconds;
 }
 
@@ -1232,6 +1363,7 @@ bool WavSet::Play(int playerflag, float numberofsecondsinplayback)
 	return true;
 }
 
+/*
 //without really resampling, , todo check if generating glitch
 bool WavSet::Resample44100monoTo44100stereo()
 {
@@ -1257,6 +1389,95 @@ bool WavSet::Resample44100monoTo44100stereo()
 			numSamples = numSamples -1;
 			totalFrames = numSamples/2;
 		}
+		return true;
+	}
+	return false;
+}
+*/
+
+bool WavSet::GetLeftChannel(class WavSet* pWavSet)
+{
+	if(pWavSet==NULL || pWavSet->pSamples!=NULL || this->numChannels!=2) return false;
+	//make mono
+	pWavSet->SampleRate = SampleRate;
+	pWavSet->totalFrames = totalFrames; 
+	pWavSet->numChannels = 1;
+	pWavSet->numSamples = pWavSet->totalFrames*pWavSet->numChannels;  
+	pWavSet->numBytes = pWavSet->numSamples*sizeof(float);
+	//malloc
+	pWavSet->pSamples = (float*) malloc(pWavSet->numBytes);
+	//read left channel data
+	for(int i=0; i<totalFrames; i++)
+	{
+		*(pWavSet->pSamples+i) = *(pSamples+2*i);  // left 
+		//*(pWavSet->pSamples+i) = *(pSamples+2*i+1);  // right 
+	}
+	return true;
+}
+
+bool WavSet::GetRightChannel(class WavSet* pWavSet)
+{
+	if(pWavSet==NULL || pWavSet->pSamples!=NULL || this->numChannels!=2) return false;
+	//make mono
+	pWavSet->SampleRate = SampleRate;
+	pWavSet->totalFrames = totalFrames; 
+	pWavSet->numChannels = 1;
+	pWavSet->numSamples = pWavSet->totalFrames*pWavSet->numChannels;  
+	pWavSet->numBytes = pWavSet->numSamples*sizeof(float);
+	//malloc
+	pWavSet->pSamples = (float*) malloc(pWavSet->numBytes);
+	//read right channel data
+	for(int i=0; i<totalFrames; i++)
+	{
+		//*(pWavSet->pSamples+i) = *(pSamples+2*i);  // left 
+		*(pWavSet->pSamples+i) = *(pSamples+2*i+1);  // right 
+	}
+	return true;
+}
+
+bool WavSet::SetLeftAndRightChannels(class WavSet* pLeftWavSet, class WavSet* pRightWavSet)
+{
+	if(pLeftWavSet==NULL || pRightWavSet==NULL || pSamples!=NULL 
+		|| (pLeftWavSet->SampleRate!=pRightWavSet->SampleRate) || (pLeftWavSet->totalFrames!=pRightWavSet->totalFrames) 
+		|| pLeftWavSet->numChannels!=1 || pRightWavSet->numChannels!=1) return false;
+	//make stereo
+	SampleRate = pLeftWavSet->SampleRate;
+	totalFrames = pLeftWavSet->totalFrames; 
+	numChannels = 2;
+	numSamples = totalFrames*numChannels;  
+	numBytes = numSamples*sizeof(float);
+	//malloc
+	pSamples = (float*) malloc(numBytes);
+	//write left and right channel data
+	for(int i=0; i<totalFrames; i++)
+	{
+		*(pSamples+2*i) = *(pLeftWavSet->pSamples+i);  // left 
+		*(pSamples+2*i+1) = *(pRightWavSet->pSamples+i);  // right 
+	}
+	return true;
+}
+
+
+bool WavSet::Resample44100monoTo44100stereo()
+{
+	if(numChannels==1 && SampleRate==44100)
+	{
+		assert(totalFrames==numSamples); //was mono
+		WavSet myMonoWavSet(this);
+		//make it stereo
+		totalFrames = totalFrames; 
+		numChannels = 2;
+		numSamples = totalFrames*numChannels;  
+		numBytes = numSamples*sizeof(float);
+		//realloc
+		pSamples = (float*) realloc(pSamples,numBytes);
+		//duplicate mono data
+		for(int i=0; i<totalFrames; i++)
+		{
+			*(pSamples+2*i) = *(myMonoWavSet.pSamples+i);  // left 
+			*(pSamples+2*i+1) = *(myMonoWavSet.pSamples+i);  // right 
+		}
+		assert(totalFrames==(numSamples/2)); //is now stereo
 		return true;
 	}
 	return false;
@@ -1337,3 +1558,13 @@ bool WavSet::CloseStream()
 		return false;
 	}
 }
+
+/*
+//https://support.microsoft.com/en-us/kb/121216
+void ForceVectors()
+{
+	WavSet* pClass = new WavSet[2];
+};
+
+static void(* pFunc)() = ForceVectors;
+*/

@@ -53,4 +53,17 @@ bool SPIWAVSETLIB_API IsA(int midinotenumber);
 bool SPIWAVSETLIB_API IsAs(int midinotenumber);
 bool SPIWAVSETLIB_API IsB(int midinotenumber);
 
+int SPIWAVSETLIB_API GetOctave(int midinotenumber);
+SPIWAVSETLIB_API const char* GetNote(int midinotenumber);
+
+//2020sept28, spi, begin
+SPIWAVSETLIB_API string GetNoteNamesForOctave(int octavenumber=-2); //-2 for all octaves, otherwise an integer between -1 and 9
+SPIWAVSETLIB_API string GetNoteNamesForNote(string note, int octavestart=-1, int octaveend=9); //possible input note string are "C", "C#", "CS", "Cs","D", "D#", "DS", "Ds", etc.
+																								//i.e. for "C" as input, it will return "C-1,C0,C1,C2,C3,C4,C5,C6,C7,C8,C9"
+bool SPIWAVSETLIB_API IsNoteName(string mystring);
+bool SPIWAVSETLIB_API IsNoteNoOctave(string mystring);
+int SPIWAVSETLIB_API GetNoteOffsetInFirstOctave(string mystring);
+SPIWAVSETLIB_API string GetNoteNoOctave(int noteoffset_infirstoctave);
+//2020sept28, spi, end
+
 #endif //_MIDIUTILITY_H

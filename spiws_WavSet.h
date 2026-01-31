@@ -97,6 +97,7 @@ public:
 
 	WavSet();
 	void Init();
+	WavSet(int samplerate, int numchannels, int totalframes, float* psamples);
 	WavSet(class WavSet* pWavSet, int idSegment=-1);
 	bool Copy(class WavSet* pWavSet, int idSegment=-1);
 	bool Copy(class WavSet* pWavSet, float duration_s, float offset_s);
@@ -131,7 +132,11 @@ public:
 	float SpreadSample(int numberofsample, class WavSet* pWavSet, float distance_s=10.0f, float duration_s=1.0f, float distanceoffset_s=0.0f, float amplitude=1.0f);
 	float SpreadSample(const char* patternedsample, class WavSet* pWavSet, float distance_s=10.0f, float duration_s=1.0f, float distanceoffset_s=0.0f, float amplitude=1.0f);
 	float SpreadSamples(const char* patternedsample, class Instrument* pWavSet, float distance_s=10.0f, float duration_s=1.0f, float distanceoffset_s=0.0f, float amplitude=1.0f);
-	float LoopSample(class WavSet* pWavSet, float distance_s=-1.0f, float duration_s=-1.0f, float distanceoffset_s=0.0f);
+	//2020sept29, spi, begin
+	bool Reverse();
+	//float LoopSample(class WavSet* pWavSet, float distance_s=-1.0f, float duration_s=-1.0f, float distanceoffset_s=0.0f);
+	float LoopSample(class WavSet* pWavSet, float distance_s = -1.0f, float duration_s = -1.0f, float distanceoffset_s = 0.0f, bool ceil=false, bool reverseeveryothersample=false);
+	//2020sept29, spi, end	
 	bool Concatenate(class WavSet* pWavSet);
 	bool Mix(float amplitude1, class WavSet* pWavSet1, float amplitude2, class WavSet* pWavSet2);
 	bool Sum(float amplitude, class WavSet* pWavSet, float offset_s, float duration_s);
@@ -144,6 +149,10 @@ public:
 	bool Resample48000stereoTo44100stereo();
 	bool OpenStream(PaStreamParameters* pPaStreamInputParameters, PaStreamParameters* pPaStreamOutputParameters, PaStreamCallback* pPaStreamCallback);
 	bool CloseStream();
+
+	bool GetLeftChannel(class WavSet* pWavSet);
+	bool GetRightChannel(class WavSet* pWavSet);
+	bool SetLeftAndRightChannels(class WavSet* pLeftWavSet, class WavSet* pRightWavSet);
 };
 
 
